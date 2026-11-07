@@ -3,7 +3,9 @@ package com.sabbir.smartsettings;
 import android.app.*;
 import android.os.*;
 import android.content.*;
+import android.content.pm.*;
 import android.provider.Settings;
+import android.net.Uri;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
@@ -11,6 +13,7 @@ import android.view.*;
 import android.widget.*;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 
 public class MainActivity extends Activity {
 
@@ -166,7 +169,7 @@ public class MainActivity extends Activity {
         search = new EditText(this);
         search.setSingleLine(true);
         search.setTextSize(15);
-        search.setHint("সমস্যা লিখুন...");
+        search.setHint("যেমন: ফোন গরম হচ্ছে...");
         search.setPadding(15,12,15,12);
         search.setBackground(round(Color.WHITE,14));
         main.addView(search);
@@ -334,6 +337,18 @@ public class MainActivity extends Activity {
     }
 
     void showGuide(Problem p) {
+
+        if(p.setting.equals("notification")) {
+            new AlertDialog.Builder(this)
+                .setTitle(p.icon+" "+p.title)
+                .setMessage(p.guide)
+                .setPositiveButton("অ্যাপ নির্বাচন করুন",
+                    (d,w)->chooseApp())
+                .setNegativeButton("বন্ধ করুন",null)
+                .show();
+            return;
+        }
+
         new AlertDialog.Builder(this)
             .setTitle(p.icon+" "+p.title)
             .setMessage(p.guide)
@@ -341,6 +356,63 @@ public class MainActivity extends Activity {
                 (d,w)->openSetting(p.setting))
             .setNegativeButton("বন্ধ করুন",null)
             .show();
+    }
+
+    void chooseApp() {
+
+        PackageManager pm = getPackageManager();
+
+        Intent launcher = new Intent(Intent.ACTION_MAIN);
+        launcher.addCategory(Intent.CATEGORY_LAUNCHER);
+
+        java.util.List<ResolveInfo> apps =
+            pm.queryIntentActivities(launcher,0);
+
+        ArrayList<String> names = new ArrayList<>();
+        ArrayList<String> packages = new ArrayList<>();
+        HashSet<String> seen = new HashSet<>();
+
+        for(ResolveInfo app:apps) {
+            String pkg = app.activityInfo.packageName;
+
+            if(!pkg.equals(getPackageName()) && seen.add(pkg)) {
+                names.add(app.loadLabel(pm).toString());
+                packages.add(pkg);
+            }
+        }
+
+        if(names.isEmpty()) {
+            message("কোনো অ্যাপ পাওয়া যায়নি।");
+            return;
+        }
+
+        new AlertDialog.Builder(this)
+            .setTitle("সমস্যার অ্যাপ নির্বাচন করুন")
+            .setItems(names.toArray(new String[0]),(d,which)->{
+                String pkg = packages.get(which);
+
+                try {
+                    Intent i = new Intent(
+                        Settings.ACTION_APP_NOTIFICATION_SETTINGS);
+                    i.putExtra(Settings.EXTRA_APP_PACKAGE,pkg);
+                    startActivity(i);
+                } catch(Exception e) {
+                    openAppInfo(pkg);
+                }
+            })
+            .setNegativeButton("বাতিল",null)
+            .show();
+    }
+
+    void openAppInfo(String pkg) {
+        try {
+            Intent i = new Intent(
+                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                Uri.parse("package:"+pkg));
+            startActivity(i);
+        } catch(Exception e) {
+            message("অ্যাপ সেটিংস খোলা যাচ্ছে না।");
+        }
     }
 
     void showSettingGuide(String title,String type) {
@@ -431,7 +503,7 @@ public class MainActivity extends Activity {
                     break;
 
                 case "dnd":
-                    i = new Intent(Settings.ACTION_ZEN_MODE_SETTINGS);
+                    i = new Intent(Settings.ACTION_ZEN_MODE_PRIORITY_SETTINGS);
                     break;
 
                 case "about":
@@ -456,5 +528,5 @@ public class MainActivity extends Activity {
             .setPositiveButton("ঠিক আছে",null)
             .show();
     }
-                       }
+            }
             
