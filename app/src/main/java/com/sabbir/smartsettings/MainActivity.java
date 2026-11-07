@@ -18,16 +18,34 @@ public class MainActivity extends Activity {
     LinearLayout main;
     EditText problemInput;
     TextView result;
+
     static final int VOICE_CODE = 101;
+    android.content.SharedPreferences prefs;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        prefs = getSharedPreferences("diagnosis", MODE_PRIVATE);
         showHome();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+
+        if (prefs != null &&
+            prefs.getBoolean("awaiting", false)) {
+
+            prefs.edit().putBoolean("awaiting", false).apply();
+
+            new Handler().postDelayed(
+                this::showReturnQuestion, 500);
+        }
     }
 
     void showHome() {
         ScrollView scroll = new ScrollView(this);
+
         main = new LinearLayout(this);
         main.setOrientation(LinearLayout.VERTICAL);
         main.setPadding(22, 25, 22, 25);
@@ -56,8 +74,8 @@ public class MainActivity extends Activity {
         problemInput.setTextSize(16);
         main.addView(problemInput);
 
-        addButton("সমস্যা খুঁজুন", () ->
-                diagnose(problemInput.getText().toString()));
+        addButton("সমস্যা খুঁজুন",
+            () -> diagnose(problemInput.getText().toString()));
 
         addButton("🎤 কথা বলে সমস্যা বলুন", this::startVoice);
 
@@ -119,8 +137,7 @@ public class MainActivity extends Activity {
         button.setTextColor(Color.rgb(0,90,50));
 
         LinearLayout.LayoutParams params =
-            new LinearLayout.LayoutParams(
-                -1, -2);
+            new LinearLayout.LayoutParams(-1, -2);
         params.setMargins(0,7,0,7);
 
         main.addView(button, params);
@@ -145,28 +162,30 @@ public class MainActivity extends Activity {
                 "১. অ্যাপের নোটিফিকেশন বন্ধ\n" +
                 "২. ব্যাটারির সীমাবদ্ধতা\n" +
                 "৩. Do Not Disturb চালু\n\n" +
-                "প্রথমে যে অ্যাপে সমস্যা হচ্ছে সেটি নির্বাচন করুন।"
+                "প্রথমে সমস্যার অ্যাপ নির্বাচন করুন।"
             );
             chooseApp();
-        }
-        else if (p.contains("wifi") || p.contains("ওয়াইফাই")) {
-            result.setText("Wi-Fi সেটিংস খুলছি।");
+
+        } else if (p.contains("wifi") ||
+                   p.contains("ওয়াইফাই")) {
             openCategory("wifi");
-        }
-        else if (p.contains("battery") || p.contains("ব্যাটারি")) {
-            result.setText("ব্যাটারি সেটিংস খুলছি।");
+
+        } else if (p.contains("battery") ||
+                   p.contains("ব্যাটারি")) {
             openCategory("battery");
-        }
-        else if (p.contains("bluetooth")) {
+
+        } else if (p.contains("bluetooth")) {
             openCategory("bluetooth");
-        }
-        else if (p.contains("sound") || p.contains("সাউন্ড")) {
+
+        } else if (p.contains("sound") ||
+                   p.contains("সাউন্ড")) {
             openCategory("sound");
-        }
-        else if (p.contains("storage") || p.contains("স্টোরেজ")) {
+
+        } else if (p.contains("storage") ||
+                   p.contains("স্টোরেজ")) {
             openCategory("storage");
-        }
-        else {
+
+        } else {
             result.setText(
                 "এই সমস্যাটি এখনো শনাক্ত করতে পারিনি। " +
                 "আরেকটু বিস্তারিত লিখুন।"
@@ -177,12 +196,14 @@ public class MainActivity extends Activity {
     void startVoice() {
         Intent intent = new Intent(
             RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+
         intent.putExtra(
-            RecognizerIntent.EXTRA_LANGUAGE,
-            "bn-BD");
+            RecognizerIntent.EXTRA_LANGUAGE, "bn-BD");
+
         intent.putExtra(
             RecognizerIntent.EXTRA_LANGUAGE_MODEL,
             RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+
         intent.putExtra(
             RecognizerIntent.EXTRA_PROMPT,
             "আপনার ফোনের সমস্যা বলুন");
@@ -200,12 +221,10 @@ public class MainActivity extends Activity {
     protected void onActivityResult(
         int requestCode, int resultCode, Intent data) {
 
-        super.onActivityResult(
-            requestCode, resultCode, data);
+        super.onActivityResult(requestCode, resultCode, data);
 
         if (requestCode == VOICE_CODE &&
-            resultCode == RESULT_OK &&
-            data != null) {
+            resultCode == RESULT_OK && data != null) {
 
             ArrayList<String> words =
                 data.getStringArrayListExtra(
@@ -221,34 +240,26 @@ public class MainActivity extends Activity {
     void chooseApp() {
         PackageManager pm = getPackageManager();
 
-        Intent launcher = new Intent(
-            Intent.ACTION_MAIN, null);
-        launcher.addCategory(
-            Intent.CATEGORY_LAUNCHER);
+        Intent launcher = new Intent(Intent.ACTION_MAIN);
+        launcher.addCategory(Intent.CATEGORY_LAUNCHER);
 
         List<ResolveInfo> apps =
             pm.queryIntentActivities(launcher, 0);
 
         Collections.sort(apps,
             (a,b) -> a.loadLabel(pm).toString()
-                .compareToIgnoreCase(
-                    b.loadLabel(pm).toString()));
+                .compareToIgnoreCase(b.loadLabel(pm).toString()));
 
         ArrayList<String> names = new ArrayList<>();
         ArrayList<String> packages = new ArrayList<>();
-
         HashSet<String> seen = new HashSet<>();
 
         for (ResolveInfo app : apps) {
-            String packageName =
-                app.activityInfo.packageName;
+            String pkg = app.activityInfo.packageName;
 
-            if (!packageName.equals(getPackageName())
-                && seen.add(packageName)) {
-
-                names.add(
-                    app.loadLabel(pm).toString());
-                packages.add(packageName);
+            if (!pkg.equals(getPackageName()) && seen.add(pkg)) {
+                names.add(app.loadLabel(pm).toString());
+                packages.add(pkg);
             }
         }
 
@@ -262,37 +273,138 @@ public class MainActivity extends Activity {
         new AlertDialog.Builder(this)
             .setTitle("কোন অ্যাপে নোটিফিকেশন আসে না?")
             .setItems(names.toArray(new String[0]),
-                (dialog, which) ->
-                    openAppNotificationSettings(
-                        packages.get(which)))
+                (dialog, which) -> {
+                    String pkg = packages.get(which);
+
+                    prefs.edit()
+                        .putString("package", pkg)
+                        .putString("stage", "notification")
+                        .putBoolean("pending", true)
+                        .apply();
+
+                    openAppNotificationSettings(pkg);
+                })
             .setNegativeButton("বাতিল", null)
             .show();
     }
 
-    void openAppNotificationSettings(String packageName) {
+    void openAppNotificationSettings(String pkg) {
         try {
             Intent intent = new Intent(
                 Settings.ACTION_APP_NOTIFICATION_SETTINGS);
 
-            intent.putExtra(
-                Settings.EXTRA_APP_PACKAGE,
-                packageName);
+            intent.putExtra(Settings.EXTRA_APP_PACKAGE, pkg);
 
+            prefs.edit().putBoolean("awaiting", true).apply();
+            startActivity(intent);
+
+        } catch (Exception e) {
+            openAppInfo(pkg);
+        }
+    }
+
+    void openAppInfo(String pkg) {
+        try {
+            Intent intent = new Intent(
+                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                Uri.parse("package:" + pkg));
+
+            prefs.edit().putBoolean("awaiting", true).apply();
+            startActivity(intent);
+
+        } catch (Exception e) {
+            prefs.edit().putBoolean("awaiting", false).apply();
+
+            Toast.makeText(this,
+                "সেটিংস খোলা যাচ্ছে না",
+                Toast.LENGTH_LONG).show();
+        }
+    }
+
+    void showReturnQuestion() {
+        String stage = prefs.getString("stage", "");
+
+        if (stage.equals("notification")) {
+            new AlertDialog.Builder(this)
+                .setTitle("নোটিফিকেশন পরীক্ষা")
+                .setMessage("নির্বাচিত অ্যাপের নোটিফিকেশন সেটিংস দেখেছেন। সমস্যা কি ঠিক হয়েছে?")
+                .setPositiveButton("হ্যাঁ, ঠিক হয়েছে",
+                    (d,w) -> finishDiagnosis())
+                .setNegativeButton("না, ঠিক হয়নি", (d,w) -> {
+                    prefs.edit().putString("stage", "battery").apply();
+
+                    new AlertDialog.Builder(this)
+                        .setTitle("ব্যাটারি পরীক্ষা")
+                        .setMessage("এবার নির্বাচিত অ্যাপের App Info-তে গিয়ে Battery বা Background activity সেটিংস পরীক্ষা করুন।")
+                        .setPositiveButton("সেটিংস খুলুন",
+                            (x,y) -> openAppInfo(
+                                prefs.getString("package", "")))
+                        .setNegativeButton("বাতিল", null)
+                        .show();
+                })
+                .show();
+
+        } else if (stage.equals("battery")) {
+            new AlertDialog.Builder(this)
+                .setTitle("ব্যাটারি পরীক্ষা")
+                .setMessage("ব্যাটারি সেটিংস পরীক্ষা করেছেন। সমস্যা কি ঠিক হয়েছে?")
+                .setPositiveButton("হ্যাঁ",
+                    (d,w) -> finishDiagnosis())
+                .setNegativeButton("না", (d,w) -> {
+                    prefs.edit().putString("stage", "dnd").apply();
+                    openDndSettings();
+                })
+                .show();
+
+        } else if (stage.equals("dnd")) {
+            new AlertDialog.Builder(this)
+                .setTitle("শেষ পরীক্ষা")
+                .setMessage("Do Not Disturb সেটিংস পরীক্ষা করেছেন। এবার নোটিফিকেশন ঠিক হয়েছে কি?")
+                .setPositiveButton("হ্যাঁ",
+                    (d,w) -> finishDiagnosis())
+                .setNegativeButton("না", (d,w) -> {
+                    finishDiagnosis();
+
+                    new AlertDialog.Builder(this)
+                        .setTitle("আরও সাহায্য দরকার")
+                        .setMessage("সমস্যাটি এখনো থাকতে পারে। ফোনের মডেল ও অ্যাপের নাম জানালে পরবর্তী সমাধান খুঁজতে সাহায্য করতে পারব।")
+                        .setPositiveButton("ঠিক আছে", null)
+                        .show();
+                })
+                .show();
+        }
+    }
+
+    void openDndSettings() {
+        try {
+            Intent intent = new Intent(
+                Settings.ACTION_ZEN_MODE_PRIORITY_SETTINGS);
+
+            prefs.edit().putBoolean("awaiting", true).apply();
             startActivity(intent);
 
         } catch (Exception e) {
             try {
-                Intent intent = new Intent(
-                    Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                    Uri.parse("package:" + packageName));
-
+                Intent intent = new Intent(Settings.ACTION_SOUND_SETTINGS);
+                prefs.edit().putBoolean("awaiting", true).apply();
                 startActivity(intent);
             } catch (Exception ex) {
-                Toast.makeText(this,
-                    "সেটিংস খোলা যাচ্ছে না",
-                    Toast.LENGTH_LONG).show();
+                finishDiagnosis();
             }
         }
+    }
+
+    void finishDiagnosis() {
+        prefs.edit()
+            .putBoolean("pending", false)
+            .putBoolean("awaiting", false)
+            .remove("stage")
+            .remove("package")
+            .apply();
+
+        Toast.makeText(this,
+            "পরীক্ষা সম্পন্ন হয়েছে।",
+            Toast.LENGTH_LONG).show();
     }
 
     void openCategory(String category) {
@@ -300,116 +412,73 @@ public class MainActivity extends Activity {
 
         try {
             switch (category) {
-
                 case "wifi":
-                    intent = new Intent(
-                        Settings.ACTION_WIFI_SETTINGS);
+                    intent = new Intent(Settings.ACTION_WIFI_SETTINGS);
                     break;
-
                 case "network":
-                    intent = new Intent(
-                        Settings.ACTION_NETWORK_OPERATOR_SETTINGS);
+                    intent = new Intent(Settings.ACTION_NETWORK_OPERATOR_SETTINGS);
                     break;
-
                 case "bluetooth":
-                    intent = new Intent(
-                        Settings.ACTION_BLUETOOTH_SETTINGS);
+                    intent = new Intent(Settings.ACTION_BLUETOOTH_SETTINGS);
                     break;
-
                 case "sound":
-                    intent = new Intent(
-                        Settings.ACTION_SOUND_SETTINGS);
+                    intent = new Intent(Settings.ACTION_SOUND_SETTINGS);
                     break;
-
                 case "battery":
-                    intent = new Intent(
-                        Settings.ACTION_BATTERY_SAVER_SETTINGS);
+                    intent = new Intent(Settings.ACTION_BATTERY_SAVER_SETTINGS);
                     break;
-
                 case "display":
-                    intent = new Intent(
-                        Settings.ACTION_DISPLAY_SETTINGS);
+                    intent = new Intent(Settings.ACTION_DISPLAY_SETTINGS);
                     break;
-
                 case "location":
-                    intent = new Intent(
-                        Settings.ACTION_LOCATION_SOURCE_SETTINGS);
+                    intent = new Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS);
                     break;
-
                 case "security":
-                    intent = new Intent(
-                        Settings.ACTION_SECURITY_SETTINGS);
+                    intent = new Intent(Settings.ACTION_SECURITY_SETTINGS);
                     break;
-
                 case "apps":
-                    intent = new Intent(
-                        Settings.ACTION_APPLICATION_SETTINGS);
+                    intent = new Intent(Settings.ACTION_APPLICATION_SETTINGS);
                     break;
-
                 case "storage":
-                    intent = new Intent(
-                        Settings.ACTION_INTERNAL_STORAGE_SETTINGS);
+                    intent = new Intent(Settings.ACTION_INTERNAL_STORAGE_SETTINGS);
                     break;
-
                 case "language":
-                    intent = new Intent(
-                        Settings.ACTION_INPUT_METHOD_SETTINGS);
+                    intent = new Intent(Settings.ACTION_INPUT_METHOD_SETTINGS);
                     break;
-
                 case "datetime":
-                    intent = new Intent(
-                        Settings.ACTION_DATE_SETTINGS);
+                    intent = new Intent(Settings.ACTION_DATE_SETTINGS);
                     break;
-
                 case "accessibility":
-                    intent = new Intent(
-                        Settings.ACTION_ACCESSIBILITY_SETTINGS);
+                    intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
                     break;
-
                 case "dnd":
-                    intent = new Intent(
-                        Settings.ACTION_ZEN_MODE_PRIORITY_SETTINGS);
+                    intent = new Intent(Settings.ACTION_ZEN_MODE_PRIORITY_SETTINGS);
                     break;
-
                 case "defaults":
-                    intent = new Intent(
-                        Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS);
+                    intent = new Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS);
                     break;
-
                 case "accounts":
-                    intent = new Intent(
-                        Settings.ACTION_SYNC_SETTINGS);
+                    intent = new Intent(Settings.ACTION_SYNC_SETTINGS);
                     break;
-
                 case "privacy":
-                    intent = new Intent(
-                        Settings.ACTION_PRIVACY_SETTINGS);
+                    intent = new Intent(Settings.ACTION_PRIVACY_SETTINGS);
                     break;
-
                 case "developer":
-                    intent = new Intent(
-                        Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS);
+                    intent = new Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS);
                     break;
-
                 case "about":
-                    intent = new Intent(
-                        Settings.ACTION_DEVICE_INFO_SETTINGS);
+                    intent = new Intent(Settings.ACTION_DEVICE_INFO_SETTINGS);
                     break;
-
                 case "hotspot":
                 case "airplane":
-                    intent = new Intent(
-                        Settings.ACTION_WIRELESS_SETTINGS);
+                    intent = new Intent(Settings.ACTION_WIRELESS_SETTINGS);
                     break;
-
                 case "notification":
                     chooseApp();
                     return;
             }
 
-            if (intent != null) {
-                startActivity(intent);
-            }
+            if (intent != null) startActivity(intent);
 
         } catch (Exception e) {
             Toast.makeText(this,
@@ -417,4 +486,4 @@ public class MainActivity extends Activity {
                 Toast.LENGTH_LONG).show();
         }
     }
-    }
+                      }
